@@ -3,6 +3,8 @@ import tensorflow as tf
 import numpy as np
 from PIL import Image
 import pickle
+import time
+import matplotlib.pyplot as plt  # ← Add this
 
 # Load model and metadata
 @st.cache_resource
@@ -24,8 +26,12 @@ st.markdown("""
         --primary-hover: #4338ca;
         --secondary: #f5f3ff;
         --accent: #10b981;
-        --dark: #1e293b;
+        --dark: #00000;
         --light: #f8fafc;
+    }
+            
+    body, p, h1, h2, h3, h4, h5, h6, div, span {
+        color: black !important;
     }
     
     [data-testid="stAppViewContainer"] {
@@ -131,76 +137,81 @@ if "page" not in st.session_state:
 
 # ---------- HOME PAGE ----------
 if st.session_state.page == "Home":
-    st.markdown("""
-        <h1 style='color: var(--dark); margin-bottom: 0.5rem;'>Insect Classifier</h1>
-        <p style='color: #64748b; margin-bottom: 2rem;'>
-            Upload an insect image to identify its species
-        </p>
-    """, unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader(
-        "Choose an image...", 
-        type=["jpg", "jpeg", "png"],
-        label_visibility="collapsed"
-    )
+    st.subheader("Upload or Take a Photo")
+    tab1, tab2 = st.tabs(["Upload Image", "Take Photo"])
 
-    if uploaded_file:
-        image = Image.open(uploaded_file).convert("RGB")
-        img_resized = image.resize((224, 224))
-        img_array = np.expand_dims(np.array(img_resized), axis=0)
+    image = None
+    with tab1:
+        uploaded_file = st.file_uploader("Upload an insect image", type=["jpg", "jpeg", "png"])
+        if uploaded_file:
+            image = Image.open(uploaded_file).convert("RGB")
+
+    with tab2:
+        camera_file = st.camera_input("Take a photo")
+        if camera_file:
+            image = Image.open(camera_file).convert("RGB")
+
+    if image:
+        st.markdown("<div class='image-preview'>", unsafe_allow_html=True)
+        st.image(image, caption="Selected Image", use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Preprocessing
+        img = image.resize((224, 224))
+        img_array = np.expand_dims(np.array(img), axis=0)
         img_array = tf.keras.applications.efficientnet.preprocess_input(img_array)
 
-        prediction = model.predict(img_array)
-        predicted_index = np.argmax(prediction[0])
-        predicted_class = class_names[predicted_index]
-        confidence = prediction[0][predicted_index] * 100
+        # Progress bar simulation
+        st.subheader("Processing...")
+        progress_bar = st.progress(0)
+        for i in range(100):
+            time.sleep(0.05)
+            progress_bar.progress(i + 1)
 
-        col1, col2 = st.columns([1, 1], gap="large")
-        with col1:
-            st.markdown("<div class='uploaded-image'>", unsafe_allow_html=True)
-            st.image(image, use_column_width=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+        CONFIDENCE_THRESHOLD = 0.70
 
-        with col2:
-            top_k = np.argsort(prediction[0])[::-1][:3]
-            
-            st.markdown(f"""
-                <div class='prediction-card'>
-                    <h3 style='margin-top: 0;'>Prediction: {predicted_class}</h3>
-                    <p style='margin-bottom: 0.25rem;'>Confidence</p>
-                    <div class='confidence-meter'>
-                        <div class='confidence-fill' style='width: {confidence}%'></div>
-                    </div>
-                    <p style='text-align: right; margin-top: 0;'>{confidence:.1f}%</p>
-                    
-            """, unsafe_allow_html=True)
+        with st.spinner("Analyzing image..."):
+            prediction = model.predict(img_array)
+            predicted_class_idx = np.argmax(prediction[0])
+            confidence = prediction[0][predicted_class_idx]
 
-            st.markdown("<h4 style='color: black; margin-top: 0.5rem;'>Top Predictions</h4>", unsafe_allow_html=True)
-            
-            for i in top_k:
-                label = class_names[i]
-                conf = prediction[0][i] * 100
-                st.markdown(f"""
-                    <div style='color: black; display: flex; justify-content: space-between; margin: 0.5rem 0;'>
-                        <span>{label}</span>
-                        <span style='font-weight: 500;'>{conf:.1f}%</span>
-                    </div>
-                """, unsafe_allow_html=True)
-            
-            st.markdown("</div>", unsafe_allow_html=True)
+            if confidence < CONFIDENCE_THRESHOLD:
+                predicted_class = class_names[predicted_class_idx]
 
-    else:
-        st.markdown("""
-            <div style='text-align: center; margin: 3rem 0; color: #64748b;'>
-                <svg xmlns='http://www.w3.org/2000/svg' width='48' height='48' viewBox='0 0 24 24' fill='none' 
-                    stroke='currentColor' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round' 
-                    style='opacity: 0.5; margin-bottom: 1rem;'>
-                    <path d='M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z'></path>
-                    <circle cx='12' cy='10' r='3'></circle>
-                </svg>
-                <p>Upload an insect image to get started</p>
-            </div>
-        """, unsafe_allow_html=True)
+                # Get top 3 predictions
+                top_3_indices = prediction[0].argsort()[-3:][::-1]
+                top_3 = [(class_names[i], prediction[0][i]) for i in top_3_indices]
+
+                st.markdown(f"<div class='prediction'>Prediction: <strong>{predicted_class}</strong></div>", unsafe_allow_html=True)
+                st.markdown("<div class='confidence-badge'>Top 3 guesses:</div>", unsafe_allow_html=True)
+
+                for label, conf in top_3:
+                    st.markdown(f"- {label}: **{conf*100:.2f}%**")
+            else:
+                predicted_class = class_names[predicted_class_idx]
+                st.markdown(f"<div class='prediction'>Prediction: <strong>{predicted_class}</strong></div>", unsafe_allow_html=True)
+                st.markdown(f"<div class='confidence-badge'>Confidence: {confidence*100:.2f}%</div>", unsafe_allow_html=True)
+
+        # Plot all class probabilities
+        st.subheader("Prediction Probabilities for All Classes")
+        fig, ax = plt.subplots(figsize=(10, 6))
+        bars = ax.barh(class_names, prediction[0], color='#00b4d8')
+        ax.set_xlabel('Probability')
+        ax.set_xlim(0, 1)
+        ax.invert_yaxis()
+        for bar in bars:
+            width = bar.get_width()
+            ax.text(width + 0.01, bar.get_y() + bar.get_height()/2,
+                    f'{width:.2f}', va='center', fontsize=9, color='white')
+        st.pyplot(fig)
+
+    st.markdown("""
+    ---
+    This app was built using TensorFlow and Streamlit.
+
+    The model is based on work by [vencerlanz09 on Kaggle](https://www.kaggle.com/code/vencerlanz09/sea-animals-classification-using-efficeintnetb7), and the dataset includes 23 Insect classes such as clams, corals, crabs, dolphins, sharks, turtles, and more.
+    """)
 
 # ---------- ABOUT PAGE ----------
 elif st.session_state.page == "About":
