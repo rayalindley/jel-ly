@@ -16,11 +16,6 @@ model, metadata = load_model()
 class_names = metadata["class_names"]
 
 # ---------- GLOBAL STYLES ----------
-st.set_page_config(
-    page_title="Insect Classifier", 
-    layout="centered",
-    page_icon="🦋"
-)
 
 st.markdown("""
     <style>
