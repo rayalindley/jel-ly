@@ -11,11 +11,13 @@ import matplotlib.pyplot as plt  # ← Add this
 def load_model():
     model = tf.keras.models.load_model("insect_classification_model.keras")
     with open("model_metadata.pkl", "rb") as f:
-        metadata = pickle.load(f)
-    return model, metadata
+        class_indices = pickle.load(f)
+    return model, class_indices
 
 model, metadata = load_model()
-class_names = metadata["class_names"]
+class_indices = metadata["class_names"]
+
+class_names = class_indices
 
 # ---------- GLOBAL STYLES ----------
 
@@ -205,13 +207,6 @@ if st.session_state.page == "Home":
             ax.text(width + 0.01, bar.get_y() + bar.get_height()/2,
                     f'{width:.2f}', va='center', fontsize=9, color='white')
         st.pyplot(fig)
-
-    st.markdown("""
-    ---
-    This app was built using TensorFlow and Streamlit.
-
-    The model is based on work by [vencerlanz09 on Kaggle](https://www.kaggle.com/code/vencerlanz09/sea-animals-classification-using-efficeintnetb7), and the dataset includes 23 Insect classes such as clams, corals, crabs, dolphins, sharks, turtles, and more.
-    """)
 
 # ---------- ABOUT PAGE ----------
 elif st.session_state.page == "About":
